@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class RipplesError(Exception):
     """Base exception for Ripples SDK errors."""
 
