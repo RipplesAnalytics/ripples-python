@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ripples-python"
+version = "0.1.0"
+description = "Official Python SDK for Ripples.sh — server-side event tracking"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+keywords = ["ripples", "analytics", "tracking", "revenue", "python"]
+authors = [
+    { name = "Ripples Analytics", email = "hello@ripples.sh" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "requests>=2.28.0",
+]
+
+[project.urls]
+Homepage = "https://ripples.sh"
+Repository = "https://github.com/ripplesanalytics/ripples-python"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

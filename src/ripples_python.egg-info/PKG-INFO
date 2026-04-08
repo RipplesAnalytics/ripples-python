@@ -1,0 +1,179 @@
+Metadata-Version: 2.4
+Name: ripples-python
+Version: 0.1.0
+Summary: Official Python SDK for Ripples.sh — server-side event tracking
+Author-email: Ripples Analytics <hello@ripples.sh>
+License-Expression: MIT
+Project-URL: Homepage, https://ripples.sh
+Project-URL: Repository, https://github.com/ripplesanalytics/ripples-python
+Keywords: ripples,analytics,tracking,revenue,python
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28.0
+
+# Ripples Python SDK
+
+Server-side Python SDK for [Ripples.sh](https://ripples.sh) analytics.
+
+## Install
+
+```bash
+pip install ripples-python
+```
+
+Set your secret key:
+
+```
+RIPPLES_SECRET_KEY=priv_your_secret_key
+```
+
+## Usage
+
+```python
+from ripples import Ripples
+
+ripples = Ripples()
+
+ripples.revenue(49.99, "user_123")
+ripples.signup("user_123", email="jane@example.com")
+ripples.track("created a budget", "user_123", area="budgets")
+ripples.identify("user_123", email="jane@example.com")
+```
+
+That's it. Events are batched and sent automatically when the process exits.
+
+## Track product usage
+
+Call `track()` when a user does something meaningful. Ripples auto-detects activation (first occurrence per user), computes adoption rates, and correlates with retention and payment.
+
+```python
+ripples.track("created a budget", "user_123", area="budgets")
+ripples.track("shared a list", "user_123", area="sharing", via="link")
+ripples.track("exported report", "user_123", area="reports", format="csv")
+```
+
+Use `area` to group actions into product areas. Use `activated=True` to mark the specific moment a user activates:
+
+```python
+ripples.track("added transaction", "user_123", area="transactions", activated=True)
+```
+
+## Track revenue
+
+```python
+ripples.revenue(49.99, "user_123")
+```
+
+Any extra keyword argument becomes a custom property:
+
+```python
+ripples.revenue(49.99, "user_123",
+    email="jane@example.com",
+    currency="EUR",
+    transaction_id="txn_abc123",
+    plan="annual",
+    coupon="WELCOME20",
+)
+```
+
+Refunds are negative revenue:
+
+```python
+ripples.revenue(-29.99, "user_123", transaction_id="txn_abc123")
+```
+
+## Track signups
+
+```python
+ripples.signup("user_123",
+    email="jane@example.com",
+    name="Jane Smith",
+    referral="twitter",
+    plan="free",
+)
+```
+
+## Identify users
+
+Update user traits at any time:
+
+```python
+ripples.identify("user_123",
+    email="jane@example.com",
+    name="Jane Smith",
+    company="Acme Inc",
+    role="admin",
+)
+```
+
+## Error handling
+
+```python
+from ripples import RipplesError
+
+try:
+    ripples.revenue(49.99, "user_123")
+except RipplesError as e:
+    print(e)
+```
+
+By default, errors during flush are swallowed so your app is never disrupted. Use `on_error` to log them:
+
+```python
+ripples = Ripples(on_error=lambda e: print(f"Ripples error: {e}"))
+```
+
+## Configuration
+
+```python
+ripples = Ripples(
+    "priv_explicit_key",
+    base_url="https://your-domain.com/api",
+    timeout=10,
+    max_queue_size=50,
+)
+```
+
+Or via environment variables:
+
+```
+RIPPLES_SECRET_KEY=priv_your_secret_key
+RIPPLES_URL=https://your-domain.com/api
+```
+
+## Flush manually
+
+Events are flushed automatically at exit. For long-running processes or CLI scripts, call `flush()` explicitly:
+
+```python
+ripples.flush()
+```
+
+## Custom HTTP client
+
+Subclass and override `_post()`:
+
+```python
+class MyRipples(Ripples):
+    def _post(self, path, data):
+        # your custom implementation
+        pass
+```
+
+## Requirements
+
+- Python 3.9+
+- requests
+
+## License
+
+MIT
