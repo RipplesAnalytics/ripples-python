@@ -5,7 +5,7 @@ Server-side Python SDK for [Ripples.sh](https://ripples.sh) analytics.
 ## Install
 
 ```bash
-pip install ripples-python
+pip install ripples
 ```
 
 Set your secret key:
