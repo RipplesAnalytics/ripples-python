@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ripples"
-version = "0.1.1"
+version = "0.1.2"
 description = "Official Python SDK for Ripples.sh — server-side event tracking"
 readme = "README.md"
 license = "MIT"
