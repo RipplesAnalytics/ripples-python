@@ -75,6 +75,47 @@ class Ripples:
         """
         self._enqueue("track", {"name": action_name, "user_id": user_id, **attributes})
 
+    def subscription(
+        self,
+        subscription_id: str,
+        user_id: str,
+        status: str,
+        amount: float,
+        interval: str = "month",
+        **attributes: Any,
+    ) -> None:
+        """Track a subscription state change for MRR calculation.
+
+        Call when a subscription is created, upgraded/downgraded, or canceled.
+        For Stripe/Paddle users with a native integration, MRR is tracked
+        automatically — only use this for other payment providers.
+
+        Args:
+            subscription_id: Your subscription ID (must be stable across updates).
+            user_id: The user who owns the subscription.
+            status: active, canceled, past_due, trialing, or paused.
+            amount: Amount per billing cycle (e.g. 29.00), in your currency.
+            interval: Billing interval: month, year, week, or day.
+            **attributes: Optional: currency, name/plan, interval_count.
+        """
+        event: dict[str, Any] = {
+            "amount": 0,
+            "user_id": user_id,
+            "subscription_id": subscription_id,
+            "subscription_status": status,
+            "subscription_amount": str(round(amount * 100)),
+            "billing_interval": interval,
+            "billing_interval_count": str(attributes.pop("interval_count", 1)),
+        }
+        currency = attributes.pop("currency", None)
+        if currency is not None:
+            event["currency"] = currency
+        name = attributes.pop("name", attributes.pop("plan", None))
+        if name is not None:
+            event["name"] = name
+        event.update(attributes)
+        self._enqueue("revenue", event)
+
     def identify(self, user_id: str, **attributes: Any) -> None:
         """Identify a user (set or update traits)."""
         self._enqueue("identify", {"user_id": user_id, **attributes})

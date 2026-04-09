@@ -45,6 +45,36 @@ Use `area` to group actions into product areas. Use `activated=True` to mark the
 ripples.track("added transaction", "user_123", area="transactions", activated=True)
 ```
 
+## Track subscriptions (MRR)
+
+Call `subscription()` when a subscription is created, upgraded, downgraded, or canceled. This powers the MRR metric on your dashboard.
+
+> **Stripe / Paddle users:** MRR is tracked automatically via the integration. Only use this method if you use a payment provider without a native Ripples integration.
+
+```python
+# User subscribes to Pro Monthly ($29/mo)
+ripples.subscription("sub_123", "user_456", "active", 29.00, "month",
+    name="Pro", currency="EUR")
+
+# User upgrades to Business Annual ($499/yr)
+ripples.subscription("sub_123", "user_456", "active", 499.00, "year",
+    name="Business")
+
+# User cancels
+ripples.subscription("sub_123", "user_456", "canceled", 0)
+```
+
+Parameters:
+
+- `subscription_id` (str, required) — stable identifier for the subscription
+- `user_id` (str, required) — your internal user ID
+- `status` (str, required) — one of: `active`, `canceled`, `past_due`, `trialing`, `paused`
+- `amount` (float, required) — amount per billing cycle (e.g. `29.00`), pass `0` when canceling
+- `interval` (str, optional) — `"month"` (default), `"year"`, `"week"`, or `"day"`
+- `currency` (str, optional) — 3-letter currency code
+- `name` / `plan` (str, optional) — plan name shown in the dashboard
+- `interval_count` (int, optional) — billing frequency multiplier (e.g. `3` for quarterly)
+
 ## Track revenue
 
 ```python
