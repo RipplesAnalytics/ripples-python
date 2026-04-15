@@ -67,11 +67,18 @@ class Ripples:
         self._enqueue("signup", {"user_id": user_id, **attributes})
 
     def track(self, action_name: str, user_id: str, **attributes: Any) -> None:
-        """Track product usage.
+        """Track significant product usage only.
+
+        Use for actions that prove a user got real value (created a budget,
+        sent a message, invited a teammate). NOT a generic event log like
+        PostHog or Mixpanel — do not send pageviews, banner impressions,
+        button clicks, or "viewed X" events. Every track() call feeds the
+        Activation dashboard; noise pollutes your funnel.
 
         Ripples auto-detects activation (first per user per action).
         Pass area= to group into product areas.
-        Pass activated=True to flag this specific occurrence.
+        Pass activated=True to flag this specific occurrence as the
+        activation moment (not every occurrence of the event type).
         """
         self._enqueue("track", {"name": action_name, "user_id": user_id, **attributes})
 
