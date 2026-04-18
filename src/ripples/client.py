@@ -3,11 +3,18 @@ from __future__ import annotations
 import atexit
 import os
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from typing import Any, Callable
 
 import requests
 
 from .errors import RipplesError
+
+SDK_NAME = "python"
+try:
+    SDK_VERSION = _pkg_version("ripples")
+except PackageNotFoundError:
+    SDK_VERSION = "0.0.0"
 
 
 class Ripples:
@@ -158,6 +165,9 @@ class Ripples:
                 **data,
                 "$type": event_type,
                 "$sent_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "$sdk_name": SDK_NAME,
+                "$sdk_version": SDK_VERSION,
+                "$platform": "server",
             }
         )
         if len(self._queue) >= self._max_queue_size:
