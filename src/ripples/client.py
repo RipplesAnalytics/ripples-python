@@ -60,11 +60,11 @@ class Ripples:
 
     def revenue(self, amount: float, user_id: str, **attributes: Any) -> None:
         """Track revenue. Use negative amounts for refunds."""
-        self._enqueue("revenue", {"amount": amount, "user_id": user_id, **attributes})
+        self._enqueue("revenue", {**attributes, "$amount": amount, "$user_id": user_id})
 
     def signup(self, user_id: str, **attributes: Any) -> None:
         """Track a signup."""
-        self._enqueue("signup", {"user_id": user_id, **attributes})
+        self._enqueue("signup", {**attributes, "$user_id": user_id})
 
     def track(self, action_name: str, user_id: str, **attributes: Any) -> None:
         """Track significant product usage only.
@@ -80,7 +80,13 @@ class Ripples:
         Pass activated=True to flag this specific occurrence as the
         activation moment (not every occurrence of the event type).
         """
-        self._enqueue("track", {"name": action_name, "user_id": user_id, **attributes})
+        props = {k: v for k, v in attributes.items() if k not in ("area", "activated")}
+        sys_fields: dict[str, Any] = {"$name": action_name, "$user_id": user_id}
+        if "area" in attributes:
+            sys_fields["$area"] = attributes["area"]
+        if "activated" in attributes:
+            sys_fields["$activated"] = attributes["activated"]
+        self._enqueue("track", {**props, **sys_fields})
 
     def subscription(
         self,
@@ -105,27 +111,30 @@ class Ripples:
             interval: Billing interval: month, year, week, or day.
             **attributes: Optional: currency, name/plan, interval_count.
         """
+        name = attributes.pop("name", attributes.pop("plan", None))
+        currency = attributes.pop("currency", None)
+        interval_count = attributes.pop("interval_count", 1)
+
+        # User properties first, then system fields on top (can't be overwritten).
         event: dict[str, Any] = {
-            "amount": 0,
-            "user_id": user_id,
+            **attributes,
+            "$amount": 0,
+            "$user_id": user_id,
             "subscription_id": subscription_id,
             "subscription_status": status,
             "subscription_amount": str(round(amount * 100)),
             "billing_interval": interval,
-            "billing_interval_count": str(attributes.pop("interval_count", 1)),
+            "billing_interval_count": str(interval_count),
         }
-        currency = attributes.pop("currency", None)
         if currency is not None:
             event["currency"] = currency
-        name = attributes.pop("name", attributes.pop("plan", None))
         if name is not None:
-            event["name"] = name
-        event.update(attributes)
+            event["$name"] = name
         self._enqueue("revenue", event)
 
     def identify(self, user_id: str, **attributes: Any) -> None:
         """Identify a user (set or update traits)."""
-        self._enqueue("identify", {"user_id": user_id, **attributes})
+        self._enqueue("identify", {**attributes, "$user_id": user_id})
 
     def flush(self) -> None:
         """Send all queued events in a single batch request.
@@ -146,9 +155,9 @@ class Ripples:
     def _enqueue(self, event_type: str, data: dict[str, Any]) -> None:
         self._queue.append(
             {
-                "type": event_type,
-                "sent_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 **data,
+                "$type": event_type,
+                "$sent_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
         )
         if len(self._queue) >= self._max_queue_size:
