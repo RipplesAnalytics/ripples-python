@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -147,3 +149,74 @@ class TestPost:
 
         with pytest.raises(RipplesError, match="validation failed"):
             self.ripples._post("/v1/ingest/batch", {"events": []})
+
+
+class TestTimestampOverride:
+    """Backfilling historical events via the `timestamp=` parameter."""
+
+    def setup_method(self):
+        self.ripples = Ripples("priv_test")
+
+    def test_omitted_timestamp_is_now_utc(self):
+        self.ripples.signup("u1")
+        event = self.ripples._queue[0]
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", event["$sent_at"])
+        # Parsed value should be within a few seconds of "now".
+        parsed = datetime.strptime(event["$sent_at"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        assert abs((datetime.now(timezone.utc) - parsed).total_seconds()) < 5
+
+    def test_aware_datetime_is_preserved(self):
+        past = datetime(2024, 3, 15, 12, 0, 0, tzinfo=timezone.utc)
+        self.ripples.track("did a thing", "u1", timestamp=past)
+        assert self.ripples._queue[0]["$sent_at"] == "2024-03-15T12:00:00Z"
+
+    def test_aware_datetime_in_non_utc_zone_is_converted(self):
+        # 09:00 at UTC+2 → 07:00 UTC
+        past = datetime(2024, 6, 1, 9, 0, 0, tzinfo=timezone(timedelta(hours=2)))
+        self.ripples.revenue(29.99, "u1", timestamp=past)
+        assert self.ripples._queue[0]["$sent_at"] == "2024-06-01T07:00:00Z"
+
+    def test_naive_datetime_is_assumed_utc(self):
+        past = datetime(2024, 1, 2, 3, 4, 5)  # no tzinfo
+        self.ripples.signup("u1", timestamp=past)
+        assert self.ripples._queue[0]["$sent_at"] == "2024-01-02T03:04:05Z"
+
+    def test_iso_string_with_z_suffix(self):
+        self.ripples.identify("u1", timestamp="2023-11-30T23:59:59Z")
+        assert self.ripples._queue[0]["$sent_at"] == "2023-11-30T23:59:59Z"
+
+    def test_iso_string_with_offset(self):
+        self.ripples.identify("u1", timestamp="2023-11-30T23:59:59+02:00")
+        assert self.ripples._queue[0]["$sent_at"] == "2023-11-30T21:59:59Z"
+
+    def test_invalid_string_raises(self):
+        with pytest.raises(RipplesError, match="Invalid timestamp"):
+            self.ripples.track("did a thing", "u1", timestamp="not-a-date")
+
+    def test_invalid_type_raises(self):
+        with pytest.raises(RipplesError, match="timestamp must be"):
+            self.ripples.track("did a thing", "u1", timestamp=1234567890)  # type: ignore[arg-type]
+
+    def test_subscription_accepts_timestamp(self):
+        past = datetime(2024, 2, 14, 15, 30, 0, tzinfo=timezone.utc)
+        self.ripples.subscription("sub_1", "u1", "active", 29.0, timestamp=past)
+        assert self.ripples._queue[0]["$sent_at"] == "2024-02-14T15:30:00Z"
+
+    @patch.object(Ripples, "_post")
+    def test_backfill_loop_across_auto_flush_boundary(self, mock_post):
+        r = Ripples("priv_test", max_queue_size=10)
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        for i in range(25):
+            r.track("did a thing", f"u{i}", timestamp=base + timedelta(days=i))
+        r.flush()
+
+        # 25 events → 10 + 10 + 5 across three batches.
+        assert mock_post.call_count == 3
+        all_events = []
+        for call in mock_post.call_args_list:
+            all_events.extend(call[0][1]["events"])
+        assert len(all_events) == 25
+        assert all_events[0]["$sent_at"] == "2024-01-01T00:00:00Z"
+        assert all_events[24]["$sent_at"] == "2024-01-25T00:00:00Z"

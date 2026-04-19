@@ -123,6 +123,24 @@ ripples.identify("user_123",
 )
 ```
 
+## Backfill historical events
+
+Pass `timestamp=` to any tracking method to override the event's time — useful when importing from a CSV, replaying from another analytics tool, or catching up after an outage. Accepts a `datetime` (aware or naive — naive is assumed UTC) or an ISO-8601 string.
+
+```python
+from datetime import datetime, timezone
+
+for row in csv_rows:
+    ripples.track(
+        row["action"],
+        row["user_id"],
+        area=row["area"],
+        timestamp=datetime.fromisoformat(row["occurred_at"]),  # any tz — converted to UTC
+    )
+
+ripples.flush()  # guarantee delivery before the process ends
+```
+
 ## Error handling
 
 ```python

@@ -17,6 +17,24 @@ except PackageNotFoundError:
     SDK_VERSION = "0.0.0"
 
 
+def _format_timestamp(ts: datetime | str | None) -> str:
+    if ts is None:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if isinstance(ts, str):
+        try:
+            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise RipplesError(f"Invalid timestamp string: {ts!r}") from exc
+    if not isinstance(ts, datetime):
+        raise RipplesError(
+            f"timestamp must be a datetime, ISO-8601 string, or None; got {type(ts).__name__}"
+        )
+    # Naive datetimes are assumed UTC — the SDK treats server-side code as UTC-native.
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 class Ripples:
     """Official Python SDK for Ripples.sh — server-side event tracking.
 
@@ -65,15 +83,46 @@ class Ripples:
     # Public API
     # ------------------------------------------------------------------
 
-    def revenue(self, amount: float, user_id: str, **attributes: Any) -> None:
-        """Track revenue. Use negative amounts for refunds."""
-        self._enqueue("revenue", {**attributes, "$amount": amount, "$user_id": user_id})
+    def revenue(
+        self,
+        amount: float,
+        user_id: str,
+        *,
+        timestamp: datetime | str | None = None,
+        **attributes: Any,
+    ) -> None:
+        """Track revenue. Use negative amounts for refunds.
 
-    def signup(self, user_id: str, **attributes: Any) -> None:
-        """Track a signup."""
-        self._enqueue("signup", {**attributes, "$user_id": user_id})
+        Pass timestamp= (datetime or ISO-8601 string) to backfill a
+        historical event; omit for "now".
+        """
+        self._enqueue(
+            "revenue",
+            {**attributes, "$amount": amount, "$user_id": user_id},
+            timestamp=timestamp,
+        )
 
-    def track(self, action_name: str, user_id: str, **attributes: Any) -> None:
+    def signup(
+        self,
+        user_id: str,
+        *,
+        timestamp: datetime | str | None = None,
+        **attributes: Any,
+    ) -> None:
+        """Track a signup.
+
+        Pass timestamp= to backfill a historical event; omit for "now".
+        """
+        self._enqueue("signup", {**attributes, "$user_id": user_id}, timestamp=timestamp)
+
+    def track(
+        self,
+        action_name: str,
+        user_id: str,
+        *,
+        timestamp: datetime | str | None = None,
+        **attributes: Any,
+    ) -> None:
         """Track significant product usage only.
 
         Use for actions that prove a user got real value (created a budget,
@@ -86,6 +135,7 @@ class Ripples:
         Pass area= to group into product areas.
         Pass activated=True to flag this specific occurrence as the
         activation moment (not every occurrence of the event type).
+        Pass timestamp= to backfill a historical event.
         """
         props = {k: v for k, v in attributes.items() if k not in ("area", "activated")}
         sys_fields: dict[str, Any] = {"$name": action_name, "$user_id": user_id}
@@ -93,7 +143,7 @@ class Ripples:
             sys_fields["$area"] = attributes["area"]
         if "activated" in attributes:
             sys_fields["$activated"] = attributes["activated"]
-        self._enqueue("track", {**props, **sys_fields})
+        self._enqueue("track", {**props, **sys_fields}, timestamp=timestamp)
 
     def subscription(
         self,
@@ -102,6 +152,8 @@ class Ripples:
         status: str,
         amount: float,
         interval: str = "month",
+        *,
+        timestamp: datetime | str | None = None,
         **attributes: Any,
     ) -> None:
         """Track a subscription state change for MRR calculation.
@@ -116,6 +168,7 @@ class Ripples:
             status: active, canceled, past_due, trialing, or paused.
             amount: Amount per billing cycle (e.g. 29.00), in your currency.
             interval: Billing interval: month, year, week, or day.
+            timestamp: Override event time for backfilling history.
             **attributes: Optional: currency, name/plan, interval_count.
         """
         name = attributes.pop("name", attributes.pop("plan", None))
@@ -137,11 +190,20 @@ class Ripples:
             event["currency"] = currency
         if name is not None:
             event["$name"] = name
-        self._enqueue("revenue", event)
+        self._enqueue("revenue", event, timestamp=timestamp)
 
-    def identify(self, user_id: str, **attributes: Any) -> None:
-        """Identify a user (set or update traits)."""
-        self._enqueue("identify", {**attributes, "$user_id": user_id})
+    def identify(
+        self,
+        user_id: str,
+        *,
+        timestamp: datetime | str | None = None,
+        **attributes: Any,
+    ) -> None:
+        """Identify a user (set or update traits).
+
+        Pass timestamp= to backdate the identify event; omit for "now".
+        """
+        self._enqueue("identify", {**attributes, "$user_id": user_id}, timestamp=timestamp)
 
     def flush(self) -> None:
         """Send all queued events in a single batch request.
@@ -159,12 +221,18 @@ class Ripples:
     # Internals
     # ------------------------------------------------------------------
 
-    def _enqueue(self, event_type: str, data: dict[str, Any]) -> None:
+    def _enqueue(
+        self,
+        event_type: str,
+        data: dict[str, Any],
+        *,
+        timestamp: datetime | str | None = None,
+    ) -> None:
         self._queue.append(
             {
                 **data,
                 "$type": event_type,
-                "$sent_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "$sent_at": _format_timestamp(timestamp),
                 "$sdk_name": SDK_NAME,
                 "$sdk_version": SDK_VERSION,
                 "$platform": "server",
