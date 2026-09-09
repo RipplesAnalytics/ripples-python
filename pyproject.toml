@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ripples"
 dynamic = ["version"]
-description = "Official Python SDK for Ripples.sh — server-side event tracking"
+description = "Official Python SDK for Ripples Metrics (ripples.sh): server-side event tracking"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 keywords = ["ripples", "analytics", "tracking", "revenue", "python"]
 authors = [
-    { name = "Ripples Analytics", email = "hello@ripples.sh" },
+    { name = "Ripples Metrics", email = "hello@ripples.sh" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -86,7 +86,7 @@ def _format_timestamp(ts: datetime | str | None) -> str:
 
 
 class Ripples:
-    """Official Python SDK for Ripples.sh — server-side event tracking.
+    """Official Python SDK for Ripples Metrics (ripples.sh): server-side event tracking.
 
     Events are queued in memory and sent as a single batch on flush().
     flush() is called automatically at interpreter exit via atexit.
